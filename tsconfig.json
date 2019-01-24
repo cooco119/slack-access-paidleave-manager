@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "target": "es6",
+    "noImplicitAny": true,
+    "moduleResolution": "node",
+    "sourceRoot": "./src",
+    "sourceMap": true,
+    "outDir": "./public",
+    "experimentalDecorators": true,
+    "lib": [ 
+      "es5",
+      "es2015",
+      "es2016.array.include",
+      "esnext.asynciterable"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "*": [
+        "node_modules/*",
+        "src/types/*"
+      ]
+    }
+  },
+  "exclude": []
+}
