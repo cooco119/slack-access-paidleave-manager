@@ -51,6 +51,31 @@ web.channels.list()
                         'user': user
                     };
                     const url = 'https://slack.com/api/users.info?' + queryString.stringify(data);
+                    name = yield axios_1.default.get(url, {
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        }
+                    })
+                        .then((response) => {
+                        if (response.status === 200) {
+                            response = response.data;
+                            return response.user.real_name;
+                        }
+                    });
+                    type = '퇴근';
+                    const tmp_date = new Date(message.ts * 1000);
+                    date = tmp_date.getFullYear().toString() + '.' + (tmp_date.getMonth() + 1).toString() + '.' + tmp_date.getDate().toString();
+                    time = tmp_date.getHours() + ':' + tmp_date.getMinutes() + ':' + tmp_date.getSeconds();
+                    console.log([name, date, time, type]);
+                }
+                else if (message.text.indexOf('외출') !== -1) {
+                    const user = message.user;
+                    const queryString = require('query-string');
+                    const data = {
+                        'token': token,
+                        'user': user
+                    };
+                    const url = 'https://slack.com/api/users.info?' + queryString.stringify(data);
                     console.log('url: ' + url);
                     name = yield axios_1.default.get(url, {
                         headers: {
@@ -64,10 +89,11 @@ web.channels.list()
                             return response.user.real_name;
                         }
                     });
-                    type = '퇴근';
+                    type = '외출';
                     const tmp_date = new Date(message.ts * 1000);
                     date = tmp_date.getFullYear().toString() + '.' + (tmp_date.getMonth() + 1).toString() + '.' + tmp_date.getDate().toString();
                     time = tmp_date.getHours() + ':' + tmp_date.getMinutes() + ':' + tmp_date.getSeconds();
+                    console.log([name, date, time, type]);
                 }
             }
             const csvfile = csvfilePrefix + name + '.csv';
