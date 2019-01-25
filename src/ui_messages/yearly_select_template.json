@@ -1,0 +1,22 @@
+{
+  "text": "연도별 조회",
+  "attachments": [
+      {
+          "text": "날짜를 선택하세요.",
+          "fallback": "에러 발생. 다시 시도해주세요.",
+          "callback_id": "select_yearly",
+          "color": "#3AA3E3",
+          "attachment_type": "default",
+          "actions": [
+              {
+                  "name": "year",
+                  "text": "연도",
+                  "type": "select",
+                  "options": [
+
+                  ]
+              }
+          ]
+      }
+  ]
+}
