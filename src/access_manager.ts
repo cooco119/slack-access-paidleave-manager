@@ -402,7 +402,7 @@ export default class AccessManager{
       let attend = 0, goHome = 0, getIn_normal = 0, getIn_return = 0, goOut = 0;
       csvdata.forEach(element => {
         // @ts-ignore
-        if (element[1] === targetyear && element[2] === targetmonth && element[3] === targetday){
+        if ((element[1] === targetyear || element[1] === '0'+targetyear) && ((element[2] === targetmonth) || (element[2] === '0'+targetmonth)) && ((element[3] === targetday) || (element[3] === '0'+targetday))){
           // @ts-ignore
           resultData.push(element);
         }
@@ -451,7 +451,7 @@ export default class AccessManager{
           // @ts-ignore
           workDuration = ((goHomeTime.getTime() - attendTime.getTime())/1000);
         }
-        else if (attendTime.getDate === new Date().getDate){
+        else if (attendTime.getDate() === new Date().getDate()){
           if (attendTime.getHours() < 12){
             expectedGoHome = (new Date(attendTime.getTime() + 9*60000));
           }
@@ -510,13 +510,13 @@ export default class AccessManager{
       let attend = 0, goHome = 0, getIn_normal = 0, getIn_return = 0, goOut = 0;
       csvdata.forEach(element => {
         // @ts-ignore
-        if (element[1] === targetyear && element[2] === targetmonth){
+        if ((element[1] === targetyear || element[1] === '0'+targetyear) &&((element[2] === targetmonth) || (element[2] === '0'+targetmonth))){
 
           // calculate if the date is in target week
           // @ts-ignore 
-          const firstDay = new Date(element[1], element[2] - 1 , 1).getDay();
+          const firstDay = new Date(element[1], parseInt(element[2]) - 1 , 1).getDay();
           // @ts-ignore 
-          const date = new Date(element[1], element[2] - 1, element[3]);
+          const date = new Date(element[1], parseInt(element[2]) - 1, element[3]);
           const week = Math.ceil((date.getDate() + firstDay) / 7);
           
           if (week.toString() === targetweek){
@@ -561,9 +561,11 @@ export default class AccessManager{
             default:
               console.log("No such type");
           }
-          if (attend === goHome){
-            // @ts-ignore
-            workDuration += ((goHomeTime.getTime() - attendTime.getTime())/1000);
+          if (goHomeTime && attendTime){
+            if (goHomeTime.getDate() === attendTime.getDate()){
+              // @ts-ignore
+              workDuration += ((goHomeTime.getTime() - attendTime.getTime())/1000);
+            }
           }
             resultListString += `${element[1]}년 ${element[2]}월 ${element[3]}일 ${element[4]}시 ${element[5]}분 ${element[6]}초 : ${element[7]}\n`;
         });
@@ -615,7 +617,7 @@ export default class AccessManager{
       let attend = 0, goHome = 0, getIn_normal = 0, getIn_return = 0, goOut = 0;
       csvdata.forEach(element => {
         // @ts-ignore
-        if (element[1] === targetyear && element[2] === targetmonth){
+        if ((element[1] === targetyear || element[1] === '0'+targetyear) &&((element[2] === targetmonth) || (element[2] === '0'+targetmonth))){
           // @ts-ignore
           resultData.push(element);
         }
@@ -656,11 +658,13 @@ export default class AccessManager{
             default:
               console.log("No such type");
           }
-          if (attend === goHome){
-            // @ts-ignore
-            workDuration += ((goHomeTime.getTime() - attendTime.getTime())/1000);
+          if (goHomeTime && attendTime){
+            if (goHomeTime.getDate() === attendTime.getDate()){
+              // @ts-ignore
+              workDuration += ((goHomeTime.getTime() - attendTime.getTime())/1000);
+            }
           }
-            resultListString += `${element[1]}년 ${element[2]}월 ${element[3]}일 ${element[4]}시 ${element[5]}분 ${element[6]}초 : ${element[7]}\n`;
+          resultListString += `${element[1]}년 ${element[2]}월 ${element[3]}일 ${element[4]}시 ${element[5]}분 ${element[6]}초 : ${element[7]}\n`;
         });
         let workDurationStr: string = '';
         if (workDuration !== 0){
@@ -668,8 +672,6 @@ export default class AccessManager{
           workDurationStr = (Math.floor(workDuration / 3600)).toString() + (underHour === 0 ? '' : '.' + underHour.toString().split('.')[1]) + '시간';
         }
         const respondText = `총 근무: ${workDurationStr}\n\n` + resultListString;
-
-        console.log(respondText);
 
         const data = {
           "response_type": "ephemeral",
