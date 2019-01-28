@@ -190,16 +190,16 @@ export default class AccessManager{
                         "value": "daily"
                     },
                     {
+                        "name": "weekly",
+                        "text": "주별",
+                        "type": "button",
+                        "value": "weekly"
+                    },
+                    {
                         "name": "monthly",
                         "text": "월별",
                         "type": "button",
                         "value": "monthly"
-                    },
-                    {
-                        "name": "yearly",
-                        "text": "연별",
-                        "type": "button",
-                        "value": "yearly"
                     }
                 ]
             }
@@ -242,8 +242,8 @@ export default class AccessManager{
       data.attachments[0].actions[0].options = yearOptions;
     }
 
-    if (value === 'yearly'){
-      templatefile = process.cwd() + '/src/ui_messages/yearly_select_template.json';
+    if (value === 'weekly'){
+      templatefile = process.cwd() + '/src/ui_messages/weekly_select_template.json';
       data = JSON.parse(fs.readFileSync(templatefile).toString());
       const currentYear = (new Date()).getFullYear();
       let yearOptions = [];
@@ -279,7 +279,7 @@ export default class AccessManager{
 
     // Add handler to ui actions 
     // @ts-ignore
-    this.slackInteractions.action({ callback_id: 'select_scope', type: 'button' }, async (payload, respond) => {
+    this.slackInteractions.action({ callbackId: 'select_scope', type: 'button' }, async (payload, respond) => {
       const user = payload.user.id;
       const name = await this.getUserName(user);
 
@@ -300,19 +300,22 @@ export default class AccessManager{
           'month': null
         }
       }
-      if (value === 'yearly'){
+      if (value === 'weekly'){
         // @ts-ignore
         this.menuSelections[name] = {
-          'year': null
+          'year': null,
+          'month': null,
+          'week': null,
         }
       }
+      // console.log(data);
       respond(data);
 
       return;
     });
 
     // @ts-ignore
-    this.slackInteractions.action({ type: 'select' }, async (payload, respond) => {
+    this.slackInteractions.action({ callbackId: 'select_daily', type: 'select' }, async (payload, respond) => {
       const user = payload.user.id;
       const name = await this.getUserName(user);
       const key = payload.actions[0].name;
@@ -333,8 +336,48 @@ export default class AccessManager{
     });
 
     // @ts-ignore
-    this.slackInteractions.action({ callback_id: 'select_daily', type: 'button' }, async (payload, respond) => {
-      console.log(payload);
+    this.slackInteractions.action({ callbackId: 'select_weekly', type: 'select' }, async (payload, respond) => {
+      const user = payload.user.id;
+      const name = await this.getUserName(user);
+      const key = payload.actions[0].name;
+      const value = payload.actions[0].selected_options[0].value;
+      // @ts-ignore
+      if (key === 'year') this.menuSelections[name].year = value;
+      // @ts-ignore
+      if (key === 'month') this.menuSelections[name].month = value;
+      // @ts-ignore
+      if (key === 'week') this.menuSelections[name].week = value;
+      console.log('Added to option field');
+      try{
+        // @ts-ignore
+        // respond().catch(err => console.log(err));
+      }
+      catch(e) { console.log(e); }
+      return;
+    });
+
+    // @ts-ignore
+    this.slackInteractions.action({ callbackId: 'select_monthly', type: 'select' }, async (payload, respond) => {
+      const user = payload.user.id;
+      const name = await this.getUserName(user);
+      const key = payload.actions[0].name;
+      const value = payload.actions[0].selected_options[0].value;
+      // @ts-ignore
+      if (key === 'year') this.menuSelections[name].year = value;
+      // @ts-ignore
+      if (key === 'month') this.menuSelections[name].month = value;
+      console.log('Added to option field');
+      try{
+        // @ts-ignore
+        // respond().catch(err => console.log(err));
+      }
+      catch(e) { console.log(e); }
+      return;
+    });
+
+    // @ts-ignore
+    this.slackInteractions.action({ callbackId: 'select_daily', type: 'button' }, async (payload, respond) => {
+      console.log('select_daily');
 
       const user = payload.user.id;
       const name = await this.getUserName(user);
@@ -349,20 +392,309 @@ export default class AccessManager{
 
       const targetfile = this.csvfilePrefix + name + '.csv';
       let csvdata: Array<Object> = [];
-      await Papa.parse(targetfile, {
+      await Papa.parse(fs.readFileSync(targetfile).toString(), {
         worker: true,
         // @ts-ignore
         step: (results) => {
-          csvdata.push(results.data);
-          console.log(results.data);
+          csvdata.push(results.data[0]);
         }
       })
-      console.log(csvdata);
-      let data = {};
+      // console.log(csvdata);
+      let resultData: Array<string> = [];
+      let attend = 0, goHome = 0, getIn_normal = 0, getIn_return = 0, goOut = 0;
       csvdata.forEach(element => {
-        console.log(element);
+        // @ts-ignore
+        if (element[1] === targetyear && element[2] === targetmonth && element[3] === targetday){
+          // @ts-ignore
+          resultData.push(element);
+        }
       });
-    })
+      console.log(resultData);
+      let resultListString = '';
+      let attendTime: Date = null, goHomeTime: Date = null;
+      try {resultData.forEach(element => {
+        switch (element[7]){
+          case '출근':
+            attend += 1;
+            attendTime = new Date(parseInt(element[1]),
+                                  parseInt(element[2]) - 1,
+                                  parseInt(element[3]),
+                                  parseInt(element[4]),
+                                  parseInt(element[5]),
+                                  parseInt(element[6]));
+            break;
+          case '출입':
+            getIn_normal += 1;
+            break;
+          case '퇴근':
+            goHome += 1;
+            goHomeTime = new Date(parseInt(element[1]),
+                                  parseInt(element[2]) - 1,
+                                  parseInt(element[3]),
+                                  parseInt(element[4]),
+                                  parseInt(element[5]),
+                                  parseInt(element[6]));
+            break;
+          case '외출':
+            goOut += 1;
+            break;
+          case '복귀':
+            getIn_return += 1;
+            break;
+          default:
+            console.log("No such type");
+        }
+          resultListString += `${element[1]}년 ${element[2]}월 ${element[3]}일 ${element[4]}시 ${element[5]}분 ${element[6]}초 : ${element[7]}\n`
+        });
+        let workDuration: number;
+        let workDurationStr: string = '';
+        let expectedGoHome: Date;
+        let remaining: string = '';
+        if (goHome !== 0){
+          // @ts-ignore
+          workDuration = ((goHomeTime.getTime() - attendTime.getTime())/1000);
+          workDurationStr = (Math.floor(workDuration / 3600)).toString() + ':' + Math.floor((workDuration % 3600) / 60).toString() + ':' + Math.floor(workDuration % 60).toString();
+        }
+        else if (attendTime.getDate === new Date().getDate){
+          if (attendTime.getHours() < 12){
+            expectedGoHome = (new Date(attendTime.getTime() + 9*60000));
+          }
+          else {
+            expectedGoHome = (new Date(attendTime.getTime() + 9*60000));
+            remaining = '퇴근까지 얼마나?: ' + (new Date(expectedGoHome.getTime() - attendTime.getTime())).toLocaleTimeString();
+          }
+        }
+
+        const respondText = `총 근무: ${workDurationStr}, 출근: ${attendTime.toLocaleTimeString()}, ${goHome === 0 ? remaining : '퇴근: ' + goHomeTime.toLocaleTimeString()}\n\n` + resultListString;
+
+        console.log(respondText);
+
+        const data = {
+          "response_type": "ephemeral",
+          "text": "일별 조회 결과 - " + attendTime.toDateString(),
+          "attachments": [
+            {
+              "text": respondText
+            }
+          ]
+        };
+        respond(data);
+      }
+      catch(e) {
+        console.log(e);
+      }
+    });
+
+    // @ts-ignore
+    this.slackInteractions.action({ callbackId: 'select_weekly', type: 'button' }, async (payload, respond) => {
+      console.log('select_weekly');
+
+      const user = payload.user.id;
+      const name = await this.getUserName(user);
+      // @ts-ignore
+      const targetyear = this.menuSelections[name].year;
+      // @ts-ignore
+      const targetmonth = this.menuSelections[name].month;
+      // @ts-ignore
+      const targetweek = this.menuSelections[name].week;
+
+      console.log('year: ' + targetyear + ', month: ' + targetmonth + ', week: ' + targetweek);
+
+      const targetfile = this.csvfilePrefix + name + '.csv';
+      let csvdata: Array<Object> = [];
+      await Papa.parse(fs.readFileSync(targetfile).toString(), {
+        worker: true,
+        // @ts-ignore
+        step: (results) => {
+          csvdata.push(results.data[0]);
+        }
+      })
+
+      let resultData: Array<string> = [];
+      let attend = 0, goHome = 0, getIn_normal = 0, getIn_return = 0, goOut = 0;
+      csvdata.forEach(element => {
+        // @ts-ignore
+        if (element[1] === targetyear && element[2] === targetmonth){
+
+          // calculate if the date is in target week
+          // @ts-ignore 
+          const firstDay = new Date(element[1], element[2] - 1 , 1).getDay();
+          // @ts-ignore 
+          const date = new Date(element[1], element[2] - 1, element[3]);
+          const week = Math.ceil((date.getDate() + firstDay) / 7);
+          
+          if (week.toString() === targetweek){
+            // @ts-ignore
+            resultData.push(element);
+          }
+        }
+      });
+      console.log(resultData);
+      let resultListString = '';
+      let attendTime: Date = null, goHomeTime: Date = null;
+      let workDuration: number = 0;
+      try {
+        resultData.forEach(element => {
+          switch (element[7]){
+            case '출근':
+              attend += 1;
+              attendTime = new Date(parseInt(element[1]),
+                                    parseInt(element[2]) - 1,
+                                    parseInt(element[3]),
+                                    parseInt(element[4]),
+                                    parseInt(element[5]),
+                                    parseInt(element[6]));
+              break;
+            case '출입':
+              getIn_normal += 1;
+              break;
+            case '퇴근':
+              goHome += 1;
+              goHomeTime = new Date(parseInt(element[1]),
+                                    parseInt(element[2]) - 1,
+                                    parseInt(element[3]),
+                                    parseInt(element[4]),
+                                    parseInt(element[5]),
+                                    parseInt(element[6]));
+              break;
+            case '외출':
+              goOut += 1;
+              break;
+            case '복귀':
+              getIn_return += 1;
+              break;
+            default:
+              console.log("No such type");
+          }
+          if (attend === goHome){
+            // @ts-ignore
+            workDuration += ((goHomeTime.getTime() - attendTime.getTime())/1000);
+          }
+            resultListString += `${element[1]}년 ${element[2]}월 ${element[3]}일 ${element[4]}시 ${element[5]}분 ${element[6]}초 : ${element[7]}\n`;
+        });
+        let workDurationStr: string = '';
+        if (workDuration !== 0){
+          const underHour = (Math.floor((workDuration % 3600) / 360) / 10);
+          workDurationStr = (Math.floor(workDuration / 3600)).toString() + (underHour === 0 ? '' : '.' + underHour.toString().split('.')[1]) + '시간';
+        }
+        const respondText = `총 근무: ${workDurationStr}\n\n` + resultListString;
+
+        const data = {
+          "response_type": "ephemeral",
+          "text": "주별 조회 결과 - " + targetyear + '년 ' + targetmonth + '월 ' + targetweek + '주',
+          "attachments": [
+            {
+              "text": respondText
+            }
+          ]
+        };
+        respond(data);
+      }
+      catch(e) {
+        console.log(e);
+      }
+    });
+
+    // @ts-ignore
+    this.slackInteractions.action({ callbackId: 'select_monthly', type: 'button' }, async (payload, respond) => {
+      console.log('select_monthly');
+
+      const user = payload.user.id;
+      const name = await this.getUserName(user);
+      // @ts-ignore
+      const targetyear = this.menuSelections[name].year;
+      // @ts-ignore
+      const targetmonth = this.menuSelections[name].month;
+
+      console.log('year: ' + targetyear + ', month: ' + targetmonth);
+
+      const targetfile = this.csvfilePrefix + name + '.csv';
+      let csvdata: Array<Object> = [];
+      await Papa.parse(fs.readFileSync(targetfile).toString(), {
+        worker: true,
+        // @ts-ignore
+        step: (results) => {
+          csvdata.push(results.data[0]);
+        }
+      })
+      // console.log(csvdata);
+      let resultData: Array<string> = [];
+      let attend = 0, goHome = 0, getIn_normal = 0, getIn_return = 0, goOut = 0;
+      csvdata.forEach(element => {
+        // @ts-ignore
+        if (element[1] === targetyear && element[2] === targetmonth){
+          // @ts-ignore
+          resultData.push(element);
+        }
+      });
+      console.log(resultData);
+      let resultListString = '';
+      let attendTime: Date = null, goHomeTime: Date = null;
+      let workDuration: number = 0;
+      try {
+        resultData.forEach(element => {
+          switch (element[7]){
+            case '출근':
+              attend += 1;
+              attendTime = new Date(parseInt(element[1]),
+                                    parseInt(element[2]) - 1,
+                                    parseInt(element[3]),
+                                    parseInt(element[4]),
+                                    parseInt(element[5]),
+                                    parseInt(element[6]));
+              break;
+            case '출입':
+              getIn_normal += 1;
+              break;
+            case '퇴근':
+              goHome += 1;
+              goHomeTime = new Date(parseInt(element[1]),
+                                    parseInt(element[2]) - 1,
+                                    parseInt(element[3]),
+                                    parseInt(element[4]),
+                                    parseInt(element[5]),
+                                    parseInt(element[6]));
+              break;
+            case '외출':
+              goOut += 1;
+              break;
+            case '복귀':
+              getIn_return += 1;
+              break;
+            default:
+              console.log("No such type");
+          }
+          if (attend === goHome){
+            // @ts-ignore
+            workDuration += ((goHomeTime.getTime() - attendTime.getTime())/1000);
+          }
+            resultListString += `${element[1]}년 ${element[2]}월 ${element[3]}일 ${element[4]}시 ${element[5]}분 ${element[6]}초 : ${element[7]}\n`;
+        });
+        let workDurationStr: string = '';
+        if (workDuration !== 0){
+          const underHour = (Math.floor((workDuration % 3600) / 360) / 10);
+          workDurationStr = (Math.floor(workDuration / 3600)).toString() + (underHour === 0 ? '' : '.' + underHour.toString().split('.')[1]) + '시간';
+        }
+        const respondText = `총 근무: ${workDurationStr}\n\n` + resultListString;
+
+        console.log(respondText);
+
+        const data = {
+          "response_type": "ephemeral",
+          "text": "월별 조회 결과 - " + targetyear.toString() + '년 ' + targetmonth.toString() + '월',
+          "attachments": [
+            {
+              "text": respondText
+            }
+          ]
+        };
+        respond(data);
+      }
+      catch(e) {
+        console.log(e);
+      }
+    });
+    
 
     http.createServer(app).listen(port, () => {
       console.log(`server listening on port ${port}`);
