@@ -270,11 +270,11 @@ export default class AccessManager{
     const port = 3000;
     const app = express();
 
-    app.use('/slack/actions', this.slackInteractions.expressMiddleware());
+    app.use('/slack/access/actions', this.slackInteractions.expressMiddleware());
     app.use(bodyParser.urlencoded({ extended: false }));
     app.use(bodyParser.json());
 
-    app.post('/slack/slash', this.handleSlashCommand);
+    app.post('/slack/access/slash', this.handleSlashCommand);
 
 
     // Add handler to ui actions 
@@ -388,8 +388,6 @@ export default class AccessManager{
       // @ts-ignore
       const targetday = this.menuSelections[name].day;
 
-      console.log('year: ' + targetyear + ', month: ' + targetmonth + ', day: ' + targetday);
-
       const targetfile = this.csvfilePrefix + name + '.csv';
       let csvdata: Array<Object> = [];
       await Papa.parse(fs.readFileSync(targetfile).toString(), {
@@ -409,7 +407,6 @@ export default class AccessManager{
           resultData.push(element);
         }
       });
-      console.log(resultData);
       let resultListString = '';
       let attendTime: Date = null, goHomeTime: Date = null;
       try {resultData.forEach(element => {
@@ -467,8 +464,6 @@ export default class AccessManager{
 
         const respondText = `총 근무: ${workDurationStr}, 출근: ${attendTime.toLocaleTimeString()}, ${goHome === 0 ? remaining : '퇴근: ' + goHomeTime.toLocaleTimeString()}\n\n` + resultListString;
 
-        console.log(respondText);
-
         const data = {
           "response_type": "ephemeral",
           "text": "일별 조회 결과 - " + attendTime.toDateString(),
@@ -497,8 +492,6 @@ export default class AccessManager{
       const targetmonth = this.menuSelections[name].month;
       // @ts-ignore
       const targetweek = this.menuSelections[name].week;
-
-      console.log('year: ' + targetyear + ', month: ' + targetmonth + ', week: ' + targetweek);
 
       const targetfile = this.csvfilePrefix + name + '.csv';
       let csvdata: Array<Object> = [];
@@ -529,7 +522,6 @@ export default class AccessManager{
           }
         }
       });
-      console.log(resultData);
       let resultListString = '';
       let attendTime: Date = null, goHomeTime: Date = null;
       let workDuration: number = 0;
@@ -606,8 +598,6 @@ export default class AccessManager{
       // @ts-ignore
       const targetmonth = this.menuSelections[name].month;
 
-      console.log('year: ' + targetyear + ', month: ' + targetmonth);
-
       const targetfile = this.csvfilePrefix + name + '.csv';
       let csvdata: Array<Object> = [];
       await Papa.parse(fs.readFileSync(targetfile).toString(), {
@@ -627,7 +617,6 @@ export default class AccessManager{
           resultData.push(element);
         }
       });
-      console.log(resultData);
       let resultListString = '';
       let attendTime: Date = null, goHomeTime: Date = null;
       let workDuration: number = 0;
