@@ -450,7 +450,6 @@ export default class AccessManager{
         if (goHome !== 0){
           // @ts-ignore
           workDuration = ((goHomeTime.getTime() - attendTime.getTime())/1000);
-          workDurationStr = (Math.floor(workDuration / 3600)).toString() + ':' + Math.floor((workDuration % 3600) / 60).toString() + ':' + Math.floor(workDuration % 60).toString();
         }
         else if (attendTime.getDate === new Date().getDate){
           if (attendTime.getHours() < 12){
@@ -460,6 +459,10 @@ export default class AccessManager{
             expectedGoHome = (new Date(attendTime.getTime() + 9*60000));
             remaining = '퇴근까지 얼마나?: ' + (new Date(expectedGoHome.getTime() - attendTime.getTime())).toLocaleTimeString();
           }
+        }
+        if (workDuration !== 0){
+          const underHour = (Math.floor((workDuration % 3600) / 360) / 10);
+          workDurationStr = (Math.floor(workDuration / 3600)).toString() + (underHour === 0 ? '' : '.' + underHour.toString().split('.')[1]) + '시간';
         }
 
         const respondText = `총 근무: ${workDurationStr}, 출근: ${attendTime.toLocaleTimeString()}, ${goHome === 0 ? remaining : '퇴근: ' + goHomeTime.toLocaleTimeString()}\n\n` + resultListString;
