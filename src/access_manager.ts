@@ -50,8 +50,8 @@ export default class AccessManager{
   menuSelections = {};
 
   constructor(){
-    this.csvfilePrefix = process.cwd().toString() + '/../data/';
-    const tokenfile = process.cwd().toString() + '/secure/slack_token';
+    this.csvfilePrefix = process.cwd().toString() + '/../data/access/';
+    const tokenfile = process.cwd().toString() + '/secure/access/slack_token';
     this.token = process.env.SLACK_TOKEN || fs.readFileSync(tokenfile).toString();
     this.rtm = new RTMClient(this.token);
     this.rtm.start();
