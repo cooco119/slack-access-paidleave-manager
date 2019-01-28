@@ -17,18 +17,16 @@ export default class PaidleaveManager{
   csvfilePrefix: string;
   // @ts-ignore Member 'slackInteractions' implicitly has an 'any' type.
   slackInteractions;
-  // @ts-ignore
-  menuSelections = {};
 
   constructor(){
-    this.csvfilePrefix = process.cwd().toString() + '/../data/';
-    const tokenfile = process.cwd().toString() + '/secure/slack_token';
+    this.csvfilePrefix = process.cwd().toString() + '/../data/paidleave/';
+    const tokenfile = process.cwd().toString() + '/secure/paidleave/slack_token';
     this.token = process.env.SLACK_TOKEN || fs.readFileSync(tokenfile).toString();
     this.rtm = new RTMClient(this.token);
     this.rtm.start();
     this.web = new WebClient(this.token);
 
-    const signingFile = process.cwd().toString() + '/secure/slack_signing_secret';
+    const signingFile = process.cwd().toString() + '/secure/paidleave/slack_signing_secret';
     const signingSecret = fs.readFileSync(signingFile).toString();
     this.slackInteractions = createMessageAdapter(signingSecret);
   }
@@ -54,145 +52,316 @@ export default class PaidleaveManager{
     });
   }
 
-  private readAccessChannel(): void {
-    /* readAccessChannel : Reads access channel and parse to csv file.
-     *
-     * If the message is not in the form, search the keywords and if exists, 
-     * get message info through web api and collect username. 
-     * The rest of data - date & time, is given in the 'message' data.
-     * 
-     */
-    this.web.channels.list()
-    .then((res) => {
-
-      // Find channel where bot is attending.
-      // @ts-ignore Property 'channels' does not exist on type 'WebAPICallResult'.
-      const access_channel = res.channels.find(c => c.is_member); 
-      if (access_channel){
-        // Subscribe 'message' event
-        this.rtm.on('message', async message => {
-            let name, year, month, day, hour, minute, second, type;
-            let tmp, date, time;
-            
-            // Parse the message if has given format
-            if (message.text.split(' : ').length === 2){
-              [tmp, type] = message.text.split(' : ');
-              [name, date, time] = tmp.split(' ');
-              name = name.split('(')[0];
-              [year, month, day] = date.split('.');
-              [hour, minute, second] = time.split(':');
-              console.log([name, year, month, day, hour, minute, second, type]);
-            }
-
-            // For message that is not in the given format, 
-            // check if contains given keyword.
-            else {
-              console.log("다른 형식의 메세지(" + message.text +"). parse 시도.");
-              
-              // keyword == '퇴근' 
-              if (message.text.indexOf('퇴근') !== -1){
-
-                // From message, get user id
-                // Using that as an argument(as a urlencoded) to Web API(GET method), 
-                // We can get user info
-                const user = message.user;
-                name = await this.getUserName(user);
-
-                // Set rest of params to save.
-                // Get date & time from message.ts, which is a unix timestamp.
-                type = '퇴근';
-                const tmp_date = new Date(message.ts * 1000);
-                year = tmp_date.getFullYear().toString();
-                month = (tmp_date.getMonth() + 1).toString();
-                day = tmp_date.getDate().toString();
-                hour = tmp_date.getHours().toString();;
-                minute = tmp_date.getMinutes().toString();;
-                second = tmp_date.getSeconds().toString();;
-                console.log([name, year, month, day, hour, minute, second, type]);
-              }
-
-              // keyword == '퇴근'
-              // Rest of what's below is same as upper keyword block
-              else if (message.text.indexOf('외출') !== -1){
-                const user = message.user;
-                name = await this.getUserName(user);
-                type = '외출';
-                const tmp_date = new Date(message.ts * 1000);
-                year = tmp_date.getFullYear().toString();
-                month = (tmp_date.getMonth() + 1).toString();
-                day = tmp_date.getDate().toString();
-                hour = tmp_date.getHours().toString();;
-                minute = tmp_date.getMinutes().toString();;
-                second = tmp_date.getSeconds().toString();;
-                console.log([name, year, month, day, hour, minute, second, type]);
-              }
-            }
-
-            // Write params into csv file.
-            const csvfile = this.csvfilePrefix + name + '.csv';
-            let sendHeaderOrNot: boolean = false;
-            if (!fs.existsSync(csvfile)) sendHeaderOrNot = true;
-            const writer = csvWriter({headers: ['name', 'year', 'month', 'day', 'hour', 'minute', 'second', 'type'], sendHeaders: sendHeaderOrNot});
-            writer.pipe(fs.createWriteStream(csvfile, { flags: 'a+' }));
-            writer.write([name, year, month, day, hour, minute, second, type]);
-            writer.end();
-        });
+  private handleSlashCommandFullday(req: Request, res: Response){
+    const responseUrl = req.body.response_url;
+    let name, date, year, month, day;
+    const type = '연차';
+    if (req.body.text.split(' ').length > 2){
+      const data = {
+        "response_type": "ephemeral",
+        "text": "오류: 입력 형식 불일치. 다음과 같이 입력하세요.\n /연차 [이름] [날짜 : YYYY.MM.DD]"
       }
-    });
+      res.status(200).json(data);
+      return;
+    }
+    try{
+      [name, date] = req.body.text.split(' ');
+      [year, month, day] = date.split('.');
+
+      let testDate = new Date(year, month - 1, day);
+      if (testDate.getFullYear().toString() !== year || (testDate.getMonth() + 1).toString() !== month || testDate.getDate().toString() !== day){
+        const data = {
+          "response_type": "ephemeral",
+          "text": "오류: 존재하지 않는 날짜."
+        }
+        res.status(200).json(data);
+        return;
+      }
+    }
+    catch(e){
+      const data = {
+        "response_type": "ephemeral",
+        "text": "오류: 입력 형식 불일치. 다음과 같이 입력하세요.\n /연차 [이름] [날짜 : YYYY.MM.DD]"
+      }
+      res.status(200).json(data);
+    }
+    try{
+      const message = `${year}년 ${month}월 ${day}일에 연차를 사용하시겠습니까?`;
+      const confirmText = `[${year}년 ${month}월 ${day}일에 연차 신청] 확실합니까?`;
+      const data = {
+          "response_type": "ephemeral",
+          "text": "연차 신청",
+          "attachments": [
+              {
+                  "text": message,
+                  "fallback": "에러 발생, 다시 시도해주세요.",
+                  "callback_id": "paidleave",
+                  "color": "#3AA3E3",
+                  "attachment_type": "default",
+                  "actions": [
+                      {
+                          "name": "ok",
+                          "text": "확인",
+                          "type": "button",
+                          "style": "danger",
+                          "value": type + '_' + date,
+                          "confirm": {
+                              "title": confirmText,
+                              "text": "잘못 신청후 취소하려면 관리자에게 문의하세요.",
+                              "ok_text": "확인",
+                              "dismiss_text": "취소"
+                          }
+                      },
+                      {
+                          "name": "cancle",
+                          "text": "취소",
+                          "type": "button",
+                          "value": "cancle"
+                      }
+                  ]
+              }
+          ]
+      }
+      res.status(200).json(data);
+    }
+    catch(e){
+      res.status(500);
+    }
   }
 
-  private handleSlashCommand(req: Request, res: Response){
+  private handleSlashCommandHalfday(req: Request, res: Response){
     const responseUrl = req.body.response_url;
-    const data = {
+    let name, date, year, month, day, time;
+    const type = '반차';
+    if (req.body.text.split(' ').length !== 3){
+      const data = {
         "response_type": "ephemeral",
-        "text": "[내 출퇴근 기록 조회하기]",
-        "attachments": [
-            {
-                "text": "조회 범위 선택",
-                "fallback": "에러 발생, 다시 시도해주세요.",
-                "callback_id": "select_scope",
-                "color": "#3AA3E3",
-                "attachment_type": "default",
-                "actions": [
-                    {
-                        "name": "daily",
-                        "text": "일별",
-                        "type": "button",
-                        "value": "daily"
-                    },
-                    {
-                        "name": "weekly",
-                        "text": "주별",
-                        "type": "button",
-                        "value": "weekly"
-                    },
-                    {
-                        "name": "monthly",
-                        "text": "월별",
-                        "type": "button",
-                        "value": "monthly"
-                    }
-                ]
-            }
-        ]
+        "text": "오류: 입력 형식 불일치. 다음과 같이 입력하세요.\n /반차 [이름] [날짜 : YYYY.MM.DD] [오전|오후]"
+      }
+      res.status(200).json(data);
+      return;
     }
-    res.status(200).json(data);
+    try{
+      [name, date, time] = req.body.text.split(' ');
+      [year, month, day] = date.split('.');
+
+      if (time !== '오전' && time !== '오후'){
+        const data = {
+          "response_type": "ephemeral",
+          "text": "오류: '오전'이나 '오후' 중에서 입력해 주세요."
+        }
+        res.status(200).json(data);
+        return;
+      }
+      let testDate = new Date(year, month - 1, day);
+      if (testDate.getFullYear().toString() !== year || (testDate.getMonth() + 1).toString() !== month || testDate.getDate().toString() !== day){
+        const data = {
+          "response_type": "ephemeral",
+          "text": "오류: 존재하지 않는 날짜."
+        }
+        res.status(200).json(data);
+        return;
+      }
+      
+    }
+    catch(e){
+      const data = {
+        "response_type": "ephemeral",
+        "text": "오류: 입력 형식 불일치. 다음과 같이 입력하세요.\n /반차 [이름] [날짜 : YYYY.MM.DD] [오전|오후]"
+      }
+      res.status(200).json(data);
+    }
+    try{
+      const message = `${year}년 ${month}월 ${day}일에 ${time} 반차를 사용하시겠습니까?`;
+      const confirmText = `[${year}년 ${month}월 ${day}일에 ${time} 반차 신청] 확실합니까?`;
+      const data = {
+          "response_type": "ephemeral",
+          "text": "반차 신청",
+          "attachments": [
+              {
+                  "text": message,
+                  "fallback": "에러 발생, 다시 시도해주세요.",
+                  "callback_id": "paidleave",
+                  "color": "#3AA3E3",
+                  "attachment_type": "default",
+                  "actions": [
+                      {
+                          "name": "ok",
+                          "text": "확인",
+                          "type": "button",
+                          "style": "danger",
+                          "value": type + '(' + time + ')' + '_' + date,
+                          "confirm": {
+                              "title": confirmText,
+                              "text": "잘못 신청후 취소하려면 관리자에게 문의하세요.",
+                              "ok_text": "확인",
+                              "dismiss_text": "취소"
+                          }
+                      },
+                      {
+                          "name": "cancle",
+                          "text": "취소",
+                          "type": "button",
+                          "value": "cancle"
+                      }
+                  ]
+              }
+          ]
+      }
+      res.status(200).json(data);
+    }
+    catch(e){
+      console.log(e);
+      res.status(500);
+    }
+  }
+
+  private async handleSlashCommandSearch(req: Request, res: Response, name: string){
+    const responseUrl = req.body.response_url;
+    let year, month, day, type;
+    let message = '';
+    let totalUse = '';
+
+    try{
+      const targetfile = this.csvfilePrefix + name + '.csv';
+      await Papa.parse(fs.readFileSync(targetfile).toString(), {
+        // @ts-ignore
+        complete: (result) => {
+          const length = result.data.length;
+          console.log(result.data);
+          totalUse = `총 사용 횟수 : ${result.data[length-2][5]}\n`;
+          // @ts-ignore
+          result.data.forEach(element => {
+            if (element.length === 1 || element[0] === 'name'){
+              return;
+            }
+            message += `\t${element[1]}년 ${element[2]}월 ${element[3]}일: ${element[4]}\n`;
+          });
+        }
+      });
+      message = totalUse + message;
+    }
+    catch(e){
+      console.log(e);
+    }
+    try{
+      const data = {
+          "response_type": "ephemeral",
+          "text": "연차 사용 내역 조회",
+          "attachments": [
+              {
+                  "text": message,
+                  "fallback": "에러 발생, 다시 시도해주세요.",
+                  "callback_id": "paidleave",
+                  "color": "#3AA3E3",
+              }
+          ]
+      }
+      res.status(200).json(data);
+    }
+    catch(e){
+      console.log(e);
+      res.status(500);
+    }
   }
 
   public start(){
-
-    // Read access channel and save to csv
-    this.readAccessChannel();
-
     // Start interactive ui service
-    const port = 3000;
+      let csvdata: Array<Object> = [];
+      const port = 3000;
     const app = express();
 
     app.use('/slack/paidleave/actions', this.slackInteractions.expressMiddleware());
     app.use(bodyParser.urlencoded({ extended: false }));
     app.use(bodyParser.json());
 
-    app.post('/slack/paidleave/slash', this.handleSlashCommand);
+    app.post('/slack/paidleave/slash/fullday', this.handleSlashCommandFullday);
+    app.post('/slack/paidleave/slash/halfday', this.handleSlashCommandHalfday);
+    app.post('/slack/paidleave/slash/search', 
+      // @ts-ignore
+      async (req, res) =>{
+        const user = req.body.user_id;
+        const name = await this.getUserName(user);
+        this.handleSlashCommandSearch(req, res, name);
+      }
+    );
+
+    // @ts-ignore
+    this.slackInteractions.action({ callbackId: 'paidleave' }, async (payload, respond) => {
+      const action = payload.actions[0];
+      const user = payload.user.id;
+      const name = await this.getUserName(user);
+
+      try{
+        if (action.name === 'ok'){
+          let type, date;
+          [type, date] = action.value.split('_');
+          let year, month, day;
+          [year, month, day] = date.split('.');
+  
+          let used = 0;
+          const targetfile = this.csvfilePrefix + name + '.csv';
+          if (fs.existsSync(targetfile)){
+            let csvdata: Array<Object> = [];
+            await Papa.parse(fs.readFileSync(targetfile).toString(), {
+              worker: true,
+              // @ts-ignore
+              step: (results) => {
+                csvdata.push(results.data[0]);
+              }
+            })
+            for (let i = 1; i < csvdata.length - 1; i++ ){
+              // @ts-ignore
+              if (year === csvdata[i][1] && month === csvdata[i][2] && day === csvdata[i][3]){
+                const data = {
+                  "response_type": "ephemeral",
+                  // @ts-ignore
+                  "text": `오류: 이미 해당 날짜에 ${csvdata[i][4]} 신청이 완료되었습니다.`
+                }
+                console.log("이미 데이터 있음");
+                respond(data);
+                return;
+              }
+            }
+            const recent = csvdata[csvdata.length - 2];
+            // @ts-ignore
+            used = parseInt(recent[recent.length - 1]);
+          }
+          
+          if (type === '연차'){
+            used += 1;
+          }
+          else {
+            used += 0.5;
+          }
+  
+          // Write params into csv file.
+          const csvfile = this.csvfilePrefix + name + '.csv';
+          let sendHeaderOrNot: boolean = false;
+          if (!fs.existsSync(csvfile)) sendHeaderOrNot = true;
+          const writer = csvWriter({headers: ['name', 'year', 'month', 'day', 'type', 'used'], sendHeaders: sendHeaderOrNot});
+          writer.pipe(fs.createWriteStream(csvfile, { flags: 'a+' }));
+          writer.write([name, year, month, day, type, used]);
+          writer.end();
+  
+          const channelMsg = `[${name}] ${year}년 ${month}월 ${day}일에 ${type} 사용 신청`;
+          const data = {
+            "response_type": "in_channel",
+            "delete_original": "true",
+            "text": channelMsg
+          }
+          respond(data);
+        }
+        else {
+          const data = {
+            "delete_original": "true"
+          }
+          respond(data);
+        }
+      }
+      catch(e) { console.log(e) }
+      return;
+    });
 
     http.createServer(app).listen(port, () => {
       console.log(`server listening on port ${port}`);

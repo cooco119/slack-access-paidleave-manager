@@ -57,7 +57,7 @@ export default class AccessManager{
     this.rtm.start();
     this.web = new WebClient(this.token);
 
-    const signingFile = process.cwd().toString() + '/secure/slack_signing_secret';
+    const signingFile = process.cwd().toString() + '/secure/access/slack_signing_secret';
     const signingSecret = fs.readFileSync(signingFile).toString();
     this.slackInteractions = createMessageAdapter(signingSecret);
   }
