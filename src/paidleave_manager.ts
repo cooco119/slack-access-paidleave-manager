@@ -221,9 +221,9 @@ export default class PaidleaveManager{
     let year, month, day, type;
     let message = '';
     let totalUse = '';
+    const targetfile = this.csvfilePrefix + name + '.csv';
 
     try{
-      const targetfile = this.csvfilePrefix + name + '.csv';
       await Papa.parse(fs.readFileSync(targetfile).toString(), {
         // @ts-ignore
         complete: (result) => {
@@ -243,6 +243,9 @@ export default class PaidleaveManager{
     }
     catch(e){
       console.log(e);
+      if (!fs.existsSync(targetfile)){
+        message = '연차 사용 내역 없음';
+      }
     }
     try{
       const data = {
@@ -267,17 +270,17 @@ export default class PaidleaveManager{
 
   public start(){
     // Start interactive ui service
-      let csvdata: Array<Object> = [];
-      const port = 3000;
+    let csvdata: Array<Object> = [];
+    const port = 3002;
     const app = express();
 
-    app.use('/slack/paidleave/actions', this.slackInteractions.expressMiddleware());
+    app.use('/actions', this.slackInteractions.expressMiddleware());
     app.use(bodyParser.urlencoded({ extended: false }));
     app.use(bodyParser.json());
 
-    app.post('/slack/paidleave/slash/fullday', this.handleSlashCommandFullday);
-    app.post('/slack/paidleave/slash/halfday', this.handleSlashCommandHalfday);
-    app.post('/slack/paidleave/slash/search', 
+    app.post('/slash/fullday', this.handleSlashCommandFullday);
+    app.post('/slash/halfday', this.handleSlashCommandHalfday);
+    app.post('/slash/search', 
       // @ts-ignore
       async (req, res) =>{
         const user = req.body.user_id;
@@ -364,7 +367,7 @@ export default class PaidleaveManager{
     });
 
     http.createServer(app).listen(port, () => {
-      console.log(`server listening on port ${port}`);
+      console.log(`paidleave manager server listening on port ${port}`);
     })
   }
 }

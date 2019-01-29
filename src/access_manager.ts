@@ -267,14 +267,14 @@ export default class AccessManager{
     this.readAccessChannel();
 
     // Start interactive ui service
-    const port = 3000;
+    const port = 3001;
     const app = express();
 
-    app.use('/slack/access/actions', this.slackInteractions.expressMiddleware());
+    app.use('/actions', this.slackInteractions.expressMiddleware());
     app.use(bodyParser.urlencoded({ extended: false }));
     app.use(bodyParser.json());
 
-    app.post('/slack/access/slash', this.handleSlashCommand);
+    app.post('/slash', this.handleSlashCommand);
 
 
     // Add handler to ui actions 
@@ -691,7 +691,7 @@ export default class AccessManager{
     
 
     http.createServer(app).listen(port, () => {
-      console.log(`server listening on port ${port}`);
+      console.log(`access manager server listening on port ${port}`);
     })
   }
 }
