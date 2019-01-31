@@ -119,7 +119,8 @@ export default class AccessManager{
       }
     });
     let resultListString = '';
-    let attendTime: Date = null, goHomeTime: Date = null;
+    let attendTime: Date = null, goHomeTime: Date = null, goOutTime: Date = null, getIn_returnTime: Date = null;
+    let outTime = 0;
     try {resultData.forEach(element => {
       switch (element[7]){
         case '출근':
@@ -145,9 +146,21 @@ export default class AccessManager{
           break;
         case '외출':
           goOut += 1;
+          goOutTime = new Date(parseInt(element[1]),
+                                parseInt(element[2]) - 1,
+                                parseInt(element[3]),
+                                parseInt(element[4]),
+                                parseInt(element[5]),
+                                parseInt(element[6]));
           break;
         case '복귀':
           getIn_return += 1;
+          getIn_returnTime = new Date(parseInt(element[1]),
+                                      parseInt(element[2]) - 1,
+                                      parseInt(element[3]),
+                                      parseInt(element[4]),
+                                      parseInt(element[5]),
+                                      parseInt(element[6]));
           break;
         default:
           console.log("No such type");
@@ -156,6 +169,7 @@ export default class AccessManager{
       });
       let workDuration: number;
       let workDurationStr: string = '';
+      let outTimeStr: string = '';
       let expectedGoHome: Date;
       let remaining: string = '';
       if (goHome !== 0){
@@ -171,12 +185,29 @@ export default class AccessManager{
           remaining = '퇴근까지 얼마나?: ' + (new Date(expectedGoHome.getTime() - attendTime.getTime())).toLocaleTimeString();
         }
       }
+      try{
+        if ((goOutTime && getIn_returnTime) && (goOut === getIn_return)){
+          if (goOutTime.getDate() === getIn_returnTime.getDate()){
+            // @ts-ignore
+            outTime += ((getIn_returnTime.getTime() - goOutTime.getTime())/1000);
+            console.log("Outtime calculated: ", outTime);
+          }
+        }
+      }
+      catch(e) {
+        console.log("Error at outtime!", e);
+      }
+      workDuration -= outTime + 3600;
+      if (outTime !== 0){
+        const underHourOut = (Math.floor((outTime % 3600) / 360) / 10);
+        outTimeStr = (Math.floor(outTime / 3600)).toString() + (underHourOut === 0 ? '' : '.' + underHourOut.toString().split('.')[1]) + '시간';
+      }
       if (workDuration !== 0){
         const underHour = (Math.floor((workDuration % 3600) / 360) / 10);
         workDurationStr = (Math.floor(workDuration / 3600)).toString() + (underHour === 0 ? '' : '.' + underHour.toString().split('.')[1]) + '시간';
       }
 
-      const respondText = "일별 조회\n\n" + `총 근무: ${workDurationStr}, 출근: ${attendTime.toLocaleTimeString()}, ${goHome === 0 ? remaining : '퇴근: ' + goHomeTime.toLocaleTimeString()}\n\n` + resultListString;
+      const respondText = "일별 조회\n\n" + `총 근무: ${workDurationStr}, 출근: ${attendTime.toLocaleTimeString()}, ${goHome === 0 ? remaining : '퇴근: ' + goHomeTime.toLocaleTimeString()}, ` + `외출 시간: ` + outTimeStr + '\n\n' + resultListString;
 
       this.web.chat.postEphemeral({channel: channel, text: respondText, user: user});
 
@@ -229,8 +260,10 @@ export default class AccessManager{
       }
     });
     let resultListString = '';
-    let attendTime: Date = null, goHomeTime: Date = null;
+    let attendTime: Date = null, goHomeTime: Date = null, goOutTime: Date = null, getIn_returnTime: Date = null;
     let workDuration: number = 0;
+    let outTime = 0; 
+    let outTimeStr = '';
     try {
       resultData.forEach(element => {
         switch (element[7]){
@@ -257,9 +290,21 @@ export default class AccessManager{
             break;
           case '외출':
             goOut += 1;
+            goOutTime = new Date(parseInt(element[1]),
+                                  parseInt(element[2]) - 1,
+                                  parseInt(element[3]),
+                                  parseInt(element[4]),
+                                  parseInt(element[5]),
+                                  parseInt(element[6]));
             break;
           case '복귀':
             getIn_return += 1;
+            getIn_returnTime = new Date(parseInt(element[1]),
+                                        parseInt(element[2]) - 1,
+                                        parseInt(element[3]),
+                                        parseInt(element[4]),
+                                        parseInt(element[5]),
+                                        parseInt(element[6]));
             break;
           default:
             console.log("No such type");
@@ -270,14 +315,25 @@ export default class AccessManager{
             workDuration += ((goHomeTime.getTime() - attendTime.getTime())/1000);
           }
         }
+        if ((goOutTime && getIn_returnTime) && (goOut === getIn_return)){
+          if (goOutTime.getDate() === getIn_returnTime.getDate()){
+            // @ts-ignore
+            outTime += ((getIn_returnTime.getTime() - goOutTime.getTime())/1000);
+          }
+        }
           resultListString += `${element[1]}년 ${element[2]}월 ${element[3]}일 ${element[4]}시 ${element[5]}분 ${element[6]}초 : ${element[7]}\n`;
       });
+      workDuration -= outTime + 3600;
+      if (outTime !== 0){
+        const underHourOut = (Math.floor((outTime % 3600) / 360) / 10);
+        outTimeStr = (Math.floor(outTime / 3600)).toString() + (underHourOut === 0 ? '' : '.' + underHourOut.toString().split('.')[1]) + '시간';
+      }
       let workDurationStr: string = '';
       if (workDuration !== 0){
         const underHour = (Math.floor((workDuration % 3600) / 360) / 10);
         workDurationStr = (Math.floor(workDuration / 3600)).toString() + (underHour === 0 ? '' : '.' + underHour.toString().split('.')[1]) + '시간';
       }
-      const respondText = "주별 조회\n\n" + `총 근무: ${workDurationStr}\n\n` + resultListString;
+      const respondText = "주별 조회\n\n" + `총 근무: ${workDurationStr}, ` + `총 외출 시간: ${outTimeStr}\n\n` + resultListString;
       
       this.web.chat.postEphemeral({channel: channel, text: respondText, user: user});
     }
@@ -319,8 +375,10 @@ export default class AccessManager{
       }
     });
     let resultListString = '';
-    let attendTime: Date = null, goHomeTime: Date = null;
+    let attendTime: Date = null, goHomeTime: Date = null, goOutTime: Date = null, getIn_returnTime: Date = null;
     let workDuration: number = 0;
+    let outTime = 0;
+    let outTimeStr = '';
     try {
       resultData.forEach(element => {
         switch (element[7]){
@@ -347,9 +405,21 @@ export default class AccessManager{
             break;
           case '외출':
             goOut += 1;
+            goOutTime = new Date(parseInt(element[1]),
+                                  parseInt(element[2]) - 1,
+                                  parseInt(element[3]),
+                                  parseInt(element[4]),
+                                  parseInt(element[5]),
+                                  parseInt(element[6]));
             break;
           case '복귀':
             getIn_return += 1;
+            getIn_returnTime = new Date(parseInt(element[1]),
+                                        parseInt(element[2]) - 1,
+                                        parseInt(element[3]),
+                                        parseInt(element[4]),
+                                        parseInt(element[5]),
+                                        parseInt(element[6]));
             break;
           default:
             console.log("No such type");
@@ -360,14 +430,25 @@ export default class AccessManager{
             workDuration += ((goHomeTime.getTime() - attendTime.getTime())/1000);
           }
         }
+        if ((goOutTime && getIn_returnTime) && (goOut === getIn_return)){
+          if (goOutTime.getDate() === getIn_returnTime.getDate()){
+            // @ts-ignore
+            outTime += ((getIn_returnTime.getTime() - goOutTime.getTime())/1000);
+          }
+        }
         resultListString += `${element[1]}년 ${element[2]}월 ${element[3]}일 ${element[4]}시 ${element[5]}분 ${element[6]}초 : ${element[7]}\n`;
       });
+      workDuration -= outTime + 3600;
+      if (outTime !== 0){
+        const underHourOut = (Math.floor((outTime % 3600) / 360) / 10);
+        outTimeStr = (Math.floor(outTime / 3600)).toString() + (underHourOut === 0 ? '' : '.' + underHourOut.toString().split('.')[1]) + '시간';
+      }
       let workDurationStr: string = '';
       if (workDuration !== 0){
-        const underHour = (Math.floor((workDuration % 3600) / 360) / 10);
-        workDurationStr = (Math.floor(workDuration / 3600)).toString() + (underHour === 0 ? '' : '.' + underHour.toString().split('.')[1]) + '시간';
+        const centiHour = (Math.floor((workDuration % 3600) / 360) / 10); // 0.1시간 단위 
+        workDurationStr = (Math.floor(workDuration / 3600)).toString() + (centiHour === 0 ? '' : '.' + centiHour.toString().split('.')[1]) + '시간';
       }
-      const respondText = "월별 조회\n\n" + `총 근무: ${workDurationStr}\n\n` + resultListString;
+      const respondText = "월별 조회\n\n" + `총 근무: ${workDurationStr}, ` + `총 외출 시간: ${outTimeStr}\n\n` + resultListString;
 
       this.web.chat.postEphemeral({channel: channel, text: respondText, user: user});
     }
