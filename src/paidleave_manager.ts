@@ -11,7 +11,8 @@ const csvWriter = require('csv-write-stream');
 const Papa = require('papaparse');
 
 export default class PaidleaveManager{
-  token: string;
+  token1: string;
+  token2: string;
   rtm: RTMClient;
   web: WebClient;
   csvfilePrefix: string;
@@ -21,10 +22,11 @@ export default class PaidleaveManager{
   constructor(){
     this.csvfilePrefix = process.cwd().toString() + '/../data/paidleave/';
     const tokenfile = process.cwd().toString() + '/secure/paidleave/slack_token';
-    this.token = process.env.SLACK_TOKEN || fs.readFileSync(tokenfile).toString();
-    this.rtm = new RTMClient(this.token);
+    [this.token1, this.token2] = fs.readFileSync(tokenfile).toString().split('\n');
+
+    this.rtm = new RTMClient(this.token1);
     this.rtm.start();
-    this.web = new WebClient(this.token);
+    this.web = new WebClient(this.token2);
 
     const signingFile = process.cwd().toString() + '/secure/paidleave/slack_signing_secret';
     const signingSecret = fs.readFileSync(signingFile).toString();
@@ -34,7 +36,7 @@ export default class PaidleaveManager{
   private async getUserName(user: string){
     const queryString = require('query-string');
     const data = {
-      'token': this.token,
+      'token': this.token1,
       'user': user
     };
     const url = 'https://slack.com/api/users.info?' + queryString.stringify(data);
@@ -52,330 +54,309 @@ export default class PaidleaveManager{
     });
   }
 
-  private handleSlashCommandFullday(req: Request, res: Response){
-    const responseUrl = req.body.response_url;
-    let name, date, year, month, day;
-    const type = '연차';
-    if (req.body.text.split(' ').length > 2){
-      const data = {
-        "response_type": "ephemeral",
-        "text": "오류: 입력 형식 불일치. 다음과 같이 입력하세요.\n /연차 [이름] [날짜 : YYYY.MM.DD]"
-      }
-      res.status(200).json(data);
-      return;
-    }
-    try{
-      [name, date] = req.body.text.split(' ');
-      [year, month, day] = date.split('.');
+  // @ts-ignore
+  private async updateCSV (message, type, year, month, day) {
+    const user = message.user;
+    const channel = message.channel;
+    const name = await this.getUserName(user);
 
-      let testDate = new Date(year, month - 1, day);
-      if (testDate.getFullYear().toString() !== year || (testDate.getMonth() + 1).toString() !== month || testDate.getDate().toString() !== day){
-        const data = {
-          "response_type": "ephemeral",
-          "text": "오류: 존재하지 않는 날짜."
-        }
-        res.status(200).json(data);
-        return;
-      }
-    }
-    catch(e){
-      const data = {
-        "response_type": "ephemeral",
-        "text": "오류: 입력 형식 불일치. 다음과 같이 입력하세요.\n /연차 [이름] [날짜 : YYYY.MM.DD]"
-      }
-      res.status(200).json(data);
-    }
     try{
-      const message = `${year}년 ${month}월 ${day}일에 연차를 사용하시겠습니까?`;
-      const confirmText = `[${year}년 ${month}월 ${day}일에 연차 신청] 확실합니까?`;
-      const data = {
-          "response_type": "ephemeral",
-          "text": "연차 신청",
-          "attachments": [
-              {
-                  "text": message,
-                  "fallback": "에러 발생, 다시 시도해주세요.",
-                  "callback_id": "paidleave",
-                  "color": "#3AA3E3",
-                  "attachment_type": "default",
-                  "actions": [
-                      {
-                          "name": "ok",
-                          "text": "확인",
-                          "type": "button",
-                          "style": "danger",
-                          "value": type + '_' + date,
-                          "confirm": {
-                              "title": confirmText,
-                              "text": "잘못 신청후 취소하려면 관리자에게 문의하세요.",
-                              "ok_text": "확인",
-                              "dismiss_text": "취소"
-                          }
-                      },
-                      {
-                          "name": "cancle",
-                          "text": "취소",
-                          "type": "button",
-                          "value": "cancle"
-                      }
-                  ]
-              }
-          ]
-      }
-      res.status(200).json(data);
-    }
-    catch(e){
-      res.status(500);
-    }
-  }
-
-  private handleSlashCommandHalfday(req: Request, res: Response){
-    const responseUrl = req.body.response_url;
-    let name, date, year, month, day, time;
-    const type = '반차';
-    if (req.body.text.split(' ').length !== 3){
-      const data = {
-        "response_type": "ephemeral",
-        "text": "오류: 입력 형식 불일치. 다음과 같이 입력하세요.\n /반차 [이름] [날짜 : YYYY.MM.DD] [오전|오후]"
-      }
-      res.status(200).json(data);
-      return;
-    }
-    try{
-      [name, date, time] = req.body.text.split(' ');
-      [year, month, day] = date.split('.');
-
-      if (time !== '오전' && time !== '오후'){
-        const data = {
-          "response_type": "ephemeral",
-          "text": "오류: '오전'이나 '오후' 중에서 입력해 주세요."
+      let used = 0;
+      const targetfile = this.csvfilePrefix + name + '.csv';
+      if (fs.existsSync(targetfile)){
+        let csvdata: Array<Object> = [];
+        await Papa.parse(fs.readFileSync(targetfile).toString(), {
+          worker: true,
+          // @ts-ignore
+          step: (results) => {
+            csvdata.push(results.data[0]);
+          }
+        })
+        for (let i = 1; i < csvdata.length - 1; i++ ){
+          // @ts-ignore
+          if (year === csvdata[i][1] && month === csvdata[i][2] && day === csvdata[i][3]){
+            // @ts-ignore
+            const response = `오류: 이미 해당 날짜에 ${csvdata[i][4]} 신청이 완료되었습니다.`;
+            // @ts-ignore
+            this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+            // @ts-ignore
+            .then(res => {
+              console.log(res);
+            })
+            .catch(console.error);
+            return;
+          }
         }
-        res.status(200).json(data);
-        return;
-      }
-      let testDate = new Date(year, month - 1, day);
-      if (testDate.getFullYear().toString() !== year || (testDate.getMonth() + 1).toString() !== month || testDate.getDate().toString() !== day){
-        const data = {
-          "response_type": "ephemeral",
-          "text": "오류: 존재하지 않는 날짜."
-        }
-        res.status(200).json(data);
-        return;
+        const recent = csvdata[csvdata.length - 2];
+        // @ts-ignore
+        used = parseInt(recent[recent.length - 1]);
       }
       
-    }
-    catch(e){
-      const data = {
-        "response_type": "ephemeral",
-        "text": "오류: 입력 형식 불일치. 다음과 같이 입력하세요.\n /반차 [이름] [날짜 : YYYY.MM.DD] [오전|오후]"
+      if (type === '연차'){
+        used += 1;
       }
-      res.status(200).json(data);
-    }
-    try{
-      const message = `${year}년 ${month}월 ${day}일에 ${time} 반차를 사용하시겠습니까?`;
-      const confirmText = `[${year}년 ${month}월 ${day}일에 ${time} 반차 신청] 확실합니까?`;
-      const data = {
-          "response_type": "ephemeral",
-          "text": "반차 신청",
-          "attachments": [
-              {
-                  "text": message,
-                  "fallback": "에러 발생, 다시 시도해주세요.",
-                  "callback_id": "paidleave",
-                  "color": "#3AA3E3",
-                  "attachment_type": "default",
-                  "actions": [
-                      {
-                          "name": "ok",
-                          "text": "확인",
-                          "type": "button",
-                          "style": "danger",
-                          "value": type + '(' + time + ')' + '_' + date,
-                          "confirm": {
-                              "title": confirmText,
-                              "text": "잘못 신청후 취소하려면 관리자에게 문의하세요.",
-                              "ok_text": "확인",
-                              "dismiss_text": "취소"
-                          }
-                      },
-                      {
-                          "name": "cancle",
-                          "text": "취소",
-                          "type": "button",
-                          "value": "cancle"
-                      }
-                  ]
-              }
-          ]
+      else {
+        used += 0.5;
       }
-      res.status(200).json(data);
-    }
-    catch(e){
-      console.log(e);
-      res.status(500);
-    }
-  }
 
-  private async handleSlashCommandSearch(req: Request, res: Response, name: string){
-    const responseUrl = req.body.response_url;
-    let year, month, day, type;
-    let message = '';
-    let totalUse = '';
-    const targetfile = this.csvfilePrefix + name + '.csv';
-    if (!fs.existsSync(targetfile)){
-      const data = {
-        "response_type": "ephemeral",
-        "text": "해당 ID에 대한 기록 존재하지 않음"
-      };
-      res.status(200).json(data);
+      // Write params into csv file.
+      const csvfile = this.csvfilePrefix + name + '.csv';
+      let sendHeaderOrNot: boolean = false;
+      if (!fs.existsSync(csvfile)) sendHeaderOrNot = true;
+      const writer = csvWriter({headers: ['name', 'year', 'month', 'day', 'type', 'used'], sendHeaders: sendHeaderOrNot});
+      writer.pipe(fs.createWriteStream(csvfile, { flags: 'a+' }));
+      writer.write([name, year, month, day, type, used]);
+      writer.end();
+
+      const channelMsg = `[${name}] ${year}년 ${month}월 ${day}일에 ${type} 사용 신청`;
+      // @ts-ignore
+      this.web.chat.postMessage({channel: message.channel, text: channelMsg})
+      // @ts-ignore
+      .then(res => {
+        console.log(res);
+      })
+      .catch(console.error);
       return;
     }
+    catch(e) { console.log(e) }
+    return;
+  }
 
-    try{
-      await Papa.parse(fs.readFileSync(targetfile).toString(), {
-        // @ts-ignore
-        complete: (result) => {
-          const length = result.data.length;
-          console.log(result.data);
-          totalUse = `총 사용 횟수 : ${result.data[length-2][5]}\n`;
-          // @ts-ignore
-          result.data.forEach(element => {
-            if (element.length === 1 || element[0] === 'name'){
-              return;
-            }
-            message += `\t${element[1]}년 ${element[2]}월 ${element[3]}일: ${element[4]}\n`;
-          });
-        }
-      });
-      message = totalUse + message;
-    }
-    catch(e){
-      console.log(e);
-      if (!fs.existsSync(targetfile)){
-        message = '연차 사용 내역 없음';
-      }
-    }
-    try{
-      const data = {
-          "response_type": "ephemeral",
-          "text": "연차 사용 내역 조회",
-          "attachments": [
-              {
-                  "text": message,
-                  "fallback": "에러 발생, 다시 시도해주세요.",
-                  "callback_id": "paidleave",
-                  "color": "#3AA3E3",
+  private readPaidleaveChannel() {
+    
+    /* readAccessChannel : Reads access channel and parse to csv file.
+     *
+     * If the message is not in the form, search the keywords and if exists, 
+     * get message info through web api and collect username. 
+     * The rest of data - date & time, is given in the 'message' data.
+     * 
+     */
+    this.web.channels.list()
+    .then((res) => {
+
+      // Find channel where bot is attending.
+      // @ts-ignore Property 'channels' does not exist on type 'WebAPICallResult'.
+      const access_channel = res.channels.find(c => c.is_member); 
+      if (access_channel){
+        // Subscribe 'message' event
+        this.rtm.on('message', async message => {
+            let name, year, month, day, hour, minute, second, type;
+            let tmp, date, time;
+            
+
+            // Check if it is a command
+            if (message.text.substring(0,2) === '//'){
+              console.log(message);
+              const commands = message.text.substring(2, message.text.length);
+              let command, arg1, arg2, arg3;
+              [command, arg1, arg2, arg3] = commands.split(' ');
+              console.log(command, arg1, arg2, arg3);
+              
+              this.web.chat.delete({channel: message.channel, ts: message.ts})
+              // @ts-ignore
+              .then(res => {
+                console.log(res);
+              })
+              .catch(console.error);
+
+              if (command === "연차"){
+                if (arg1 && arg2 && !arg3) {
+                  let year = "ff", month = "ff", day = "ff";
+                  name = arg1;
+                  [year, month, day] = arg2.split('.');
+
+                  try{
+                    // @ts-ignore
+                    let testDate = new Date(year, month - 1, day);
+                    if (testDate.getFullYear().toString() !== year || (testDate.getMonth() + 1).toString() !== month || testDate.getDate().toString() !== day){
+                      const response = "오류: 존재하지 않는 날짜.";
+                      // @ts-ignore
+                      this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                      // @ts-ignore
+                      .then(res => {
+                        console.log(res);
+                      })
+                      .catch(console.error);
+                      return;
+                    }
+                  }
+                  catch(e){
+                    console.log(e);
+                    const response = "오류: 존재하지 않는 날짜.";
+                    // @ts-ignore
+                    this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                    // @ts-ignore
+                    .then(res => {
+                      console.log(res);
+                    })
+                    .catch(console.error);
+                    return;
+                  }
+                  this.updateCSV(message, "연차", year, month, day);
+                  return;  
+                }
+                else {
+                  const response = "연차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//연차 [이름] [날짜]";
+                  // @ts-ignore
+                  this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                  // @ts-ignore
+                  .then(res => {
+                    console.log(res);
+                  })
+                  .catch(console.error);
+                  return;  
+                }
               }
-          ]
+              else if (command === "반차"){
+                if (arg1 && arg2 && arg3) {
+                  let year = "ff", month = "ff", day = "ff", type;
+                  name = arg1;
+                  type = arg3;
+                  [year, month, day] = arg2.split('.');
+
+                  try{
+                    // @ts-ignore
+                    let testDate = new Date(year, month - 1, day);
+                    if (testDate.getFullYear().toString() !== year || (testDate.getMonth() + 1).toString() !== month || testDate.getDate().toString() !== day){
+                      const response = "오류: 존재하지 않는 날짜.";
+                      // @ts-ignore
+                      this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                      // @ts-ignore
+                      .then(res => {
+                        console.log(res);
+                      })
+                      .catch(console.error);
+                      return;
+                    }
+                  }
+                  catch(e){
+                    console.log(e);
+                    const response = "오류: 존재하지 않는 날짜.";
+                    // @ts-ignore
+                    this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                    // @ts-ignore
+                    .then(res => {
+                      console.log(res);
+                    })
+                    .catch(console.error);
+                    return;
+                  }
+                  this.updateCSV(message, "반차(" + type + ")", year, month, day);
+                  return;  
+                }
+                else {
+                  const response = "반차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//반차 [이름] [날짜] [오전|오후]";
+                  // @ts-ignore
+                  this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                  // @ts-ignore
+                  .then(res => {
+                    console.log(res);
+                  })
+                  .catch(console.error);
+                  return;  
+                }
+
+              }
+              else if (command === "조회"){
+                if (!arg1 && !arg2 && !arg3){
+                  let responseMsg = "";
+                  let name = await this.getUserName(message.user);
+                  let totalUse = '';
+                  const targetfile = this.csvfilePrefix + name + '.csv';
+                  if (!fs.existsSync(targetfile)){
+                    const response = "해당 ID에 대한 기록 존재하지 않음";
+                    // @ts-ignore
+                    this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                    // @ts-ignore
+                    .then(res => {
+                      console.log(res);
+                    })
+                    .catch(console.error);
+                    return;
+                  }
+
+                  try{
+                    await Papa.parse(fs.readFileSync(targetfile).toString(), {
+                      // @ts-ignore
+                      complete: (result) => {
+                        const length = result.data.length;
+                        console.log(result.data);
+                        totalUse = `총 사용 횟수 : ${result.data[length-2][5]}\n`;
+                        // @ts-ignore
+                        result.data.forEach(element => {
+                          if (element.length === 1 || element[0] === 'name'){
+                            return;
+                          }
+                          responseMsg += `\t${element[1]}년 ${element[2]}월 ${element[3]}일: ${element[4]}\n`;
+                        });
+                      }
+                    });
+                    responseMsg = totalUse + responseMsg;
+                  }
+                  catch(e){
+                    console.log(e);
+                    if (!fs.existsSync(targetfile)){
+                      const response = '연차 사용 내역 없음';
+                      // @ts-ignore
+                      this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                      // @ts-ignore
+                      .then(res => {
+                        console.log(res);
+                      })
+                      .catch(console.error);
+                      return;
+                    }
+                  }
+                  try{
+                    // @ts-ignore
+                    this.web.chat.postEphemeral({channel: message.channel, text: responseMsg, user: message.user})
+                    // @ts-ignore
+                    .then(res => {
+                      console.log(res);
+                    })
+                    .catch(console.error);
+                    return;
+                  }
+                  catch(e){
+                    console.log(e);
+                    const response = '에러!';
+                    // @ts-ignore
+                    this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                    // @ts-ignore
+                    .then(res => {
+                      console.log(res);
+                    })
+                    .catch(console.error);
+                    return;
+                  }
+
+                }
+                else {
+                  const response = "조회 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//조회";
+                  // @ts-ignore
+                  this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                  // @ts-ignore
+                  .then(res => {
+                    console.log(res);
+                  })
+                  .catch(console.error);
+                  return;  
+                }
+              }
+              else {
+                // error!
+              }
+            }
+          })
+        }
       }
-      res.status(200).json(data);
-    }
-    catch(e){
-      console.log(e);
-      res.status(500);
-    }
+    )
   }
 
   public start(){
-    // Start interactive ui service
-    let csvdata: Array<Object> = [];
-    const port = 3002;
-    const app = express();
 
-    app.use('/actions', this.slackInteractions.expressMiddleware());
-    app.use(bodyParser.urlencoded({ extended: false }));
-    app.use(bodyParser.json());
+    console.log("Starting schedule-manager");
+    this.readPaidleaveChannel();
 
-    app.post('/slash/fullday', this.handleSlashCommandFullday);
-    app.post('/slash/halfday', this.handleSlashCommandHalfday);
-    app.post('/slash/search', 
-      // @ts-ignore
-      async (req, res) =>{
-        const user = req.body.user_id;
-        const name = await this.getUserName(user);
-        this.handleSlashCommandSearch(req, res, name);
-      }
-    );
-
-    // @ts-ignore
-    this.slackInteractions.action({ callbackId: 'paidleave' }, async (payload, respond) => {
-      const action = payload.actions[0];
-      const user = payload.user.id;
-      const name = await this.getUserName(user);
-
-      try{
-        if (action.name === 'ok'){
-          let type, date;
-          [type, date] = action.value.split('_');
-          let year, month, day;
-          [year, month, day] = date.split('.');
-  
-          let used = 0;
-          const targetfile = this.csvfilePrefix + name + '.csv';
-          if (fs.existsSync(targetfile)){
-            let csvdata: Array<Object> = [];
-            await Papa.parse(fs.readFileSync(targetfile).toString(), {
-              worker: true,
-              // @ts-ignore
-              step: (results) => {
-                csvdata.push(results.data[0]);
-              }
-            })
-            for (let i = 1; i < csvdata.length - 1; i++ ){
-              // @ts-ignore
-              if (year === csvdata[i][1] && month === csvdata[i][2] && day === csvdata[i][3]){
-                const data = {
-                  "response_type": "ephemeral",
-                  // @ts-ignore
-                  "text": `오류: 이미 해당 날짜에 ${csvdata[i][4]} 신청이 완료되었습니다.`
-                }
-                console.log("이미 데이터 있음");
-                respond(data);
-                return;
-              }
-            }
-            const recent = csvdata[csvdata.length - 2];
-            // @ts-ignore
-            used = parseInt(recent[recent.length - 1]);
-          }
-          
-          if (type === '연차'){
-            used += 1;
-          }
-          else {
-            used += 0.5;
-          }
-  
-          // Write params into csv file.
-          const csvfile = this.csvfilePrefix + name + '.csv';
-          let sendHeaderOrNot: boolean = false;
-          if (!fs.existsSync(csvfile)) sendHeaderOrNot = true;
-          const writer = csvWriter({headers: ['name', 'year', 'month', 'day', 'type', 'used'], sendHeaders: sendHeaderOrNot});
-          writer.pipe(fs.createWriteStream(csvfile, { flags: 'a+' }));
-          writer.write([name, year, month, day, type, used]);
-          writer.end();
-  
-          const channelMsg = `[${name}] ${year}년 ${month}월 ${day}일에 ${type} 사용 신청`;
-          const data = {
-            "response_type": "in_channel",
-            "delete_original": "true",
-            "text": channelMsg
-          }
-          respond(data);
-        }
-        else {
-          const data = {
-            "delete_original": "true"
-          }
-          respond(data);
-        }
-      }
-      catch(e) { console.log(e) }
-      return;
-    });
-
-    http.createServer(app).listen(port, () => {
-      console.log(`paidleave manager server listening on port ${port}`);
-    })
   }
 }
