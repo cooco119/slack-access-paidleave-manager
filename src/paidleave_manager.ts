@@ -47,7 +47,7 @@ export default class PaidleaveManager{
       if (response.status === 200){
         response = response.data;
         // @ts-ignore Property 'user' does not exist on type 'AxiosResponse<any>'.
-        return response.user.real_name;
+        return response.user.profile.display_name;
       }
     });
   }
@@ -222,6 +222,14 @@ export default class PaidleaveManager{
     let message = '';
     let totalUse = '';
     const targetfile = this.csvfilePrefix + name + '.csv';
+    if (!fs.existsSync(targetfile)){
+      const data = {
+        "response_type": "ephemeral",
+        "text": "해당 ID에 대한 기록 존재하지 않음"
+      };
+      res.status(200).json(data);
+      return;
+    }
 
     try{
       await Papa.parse(fs.readFileSync(targetfile).toString(), {

@@ -78,7 +78,8 @@ export default class AccessManager{
       if (response.status === 200){
         response = response.data;
         // @ts-ignore Property 'user' does not exist on type 'AxiosResponse<any>'.
-        return response.user.real_name;
+        // @ts-ignore Property 'user' does not exist on type 'AxiosResponse<any>'.
+        return response.user.profile.display_name;
       }
     });
   }
@@ -389,6 +390,14 @@ export default class AccessManager{
       const targetday = this.menuSelections[name].day;
 
       const targetfile = this.csvfilePrefix + name + '.csv';
+      if (!fs.existsSync(targetfile)){
+        const data = {
+          "response_type": "ephemeral",
+          "text": "해당 ID에 대한 기록 존재하지 않음"
+        };
+        respond(data);
+        return;
+      }
       let csvdata: Array<Object> = [];
       await Papa.parse(fs.readFileSync(targetfile).toString(), {
         worker: true,
@@ -497,6 +506,14 @@ export default class AccessManager{
       const targetweek = this.menuSelections[name].week;
 
       const targetfile = this.csvfilePrefix + name + '.csv';
+      if (!fs.existsSync(targetfile)){
+        const data = {
+          "response_type": "ephemeral",
+          "text": "해당 ID에 대한 기록 존재하지 않음"
+        };
+        respond(data);
+        return;
+      }
       let csvdata: Array<Object> = [];
       await Papa.parse(fs.readFileSync(targetfile).toString(), {
         worker: true,
@@ -604,6 +621,14 @@ export default class AccessManager{
       const targetmonth = this.menuSelections[name].month;
 
       const targetfile = this.csvfilePrefix + name + '.csv';
+      if (!fs.existsSync(targetfile)){
+        const data = {
+          "response_type": "ephemeral",
+          "text": "해당 ID에 대한 기록 존재하지 않음"
+        };
+        respond(data);
+        return;
+      }
       let csvdata: Array<Object> = [];
       await Papa.parse(fs.readFileSync(targetfile).toString(), {
         worker: true,

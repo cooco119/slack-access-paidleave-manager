@@ -13,9 +13,9 @@ const app = express();
 const access_manager_url = 'localhost:3001';
 const paidleave_manager_url = 'localhost:3002';
 
-app.use('/slack/access', proxy(access_manager_url));
-app.use('/slack/paidleave', proxy(paidleave_manager_url));
+app.use('/access', proxy(access_manager_url));
+app.use('/paidleave', proxy(paidleave_manager_url));
 
 http.createServer(app).listen(port, () => {
-  console.log(`Proxy server listening on port ${port}`);
+  console.log(`Slack API Proxy server listening on port ${port}`);
 })

@@ -24,6 +24,7 @@
   "scripts": {
     "start": "ts-node app.ts",
     "deploy": "node",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "fetch": "ts-node src/get_access_history.ts"
   }
 }
