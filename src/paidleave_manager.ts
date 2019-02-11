@@ -56,6 +56,47 @@ export default class PaidleaveManager{
   }
 
   // @ts-ignore
+  private async sortAndRewrite(csv){
+    console.log("csv: ", csv);
+
+    let name, year, month, day, type, used;
+
+    let csvdata: Array<Array<string>> = [];
+    await Papa.parse(fs.readFileSync(csv).toString(), {
+      worker: true,
+      // @ts-ignore
+      step: (results) => {
+        csvdata.push(results.data[0]);
+      }
+    })
+    let dataNoHeader = csvdata.slice(1, csvdata.length-1);
+    dataNoHeader.sort((a: Array<string>, b: Array<string>): number => {
+      const dateA = new Date(parseInt(a[1]), parseInt(a[2])-1, parseInt(a[3]));
+      const dateB = new Date(parseInt(b[1]), parseInt(b[2])-1, parseInt(b[3]));
+
+      if (dateA > dateB) return 1;
+      if (dateA < dateB) return -1;
+
+      return 0;
+    });
+
+    const writer = csvWriter({headers: ['name', 'year', 'month', 'day', 'type', 'used'], sendHeaders: true});
+    writer.pipe(fs.createWriteStream(csv, { flags: 'w' }));
+    dataNoHeader[0][5] = dataNoHeader[0][4] === "연차" ? '1' : '0.5';
+    writer.write(dataNoHeader[0]);
+    for (let i = 1; i < dataNoHeader.length; i++){
+      if (dataNoHeader[i][0] === ''){
+        continue;
+      }
+      let lastValue = parseFloat(dataNoHeader[i-1][5]);
+      dataNoHeader[i][5] = dataNoHeader[i][4] === "연차" ? (lastValue + 1).toString() : (lastValue + 0.5).toString(); 
+      writer.write(dataNoHeader[i]);
+    }
+    writer.end();
+
+  }
+
+  // @ts-ignore
   private async updateCSV (message, type, year, month, day) {
     const user = message.user;
     const channel = message.channel;
@@ -101,7 +142,6 @@ export default class PaidleaveManager{
       }
       else {
         throw error("Not a defined type");
-        return;
       }
 
       // Write params into csv file.
@@ -112,6 +152,9 @@ export default class PaidleaveManager{
       writer.pipe(fs.createWriteStream(csvfile, { flags: 'a+' }));
       writer.write([name, year, month, day, type, used]);
       writer.end();
+
+      //@ts-ignore
+      setTimeout((csvfile) => {this.sortAndRewrite(csvfile)}, 2000, csvfile);
 
       const channelMsg = `[${name}] ${year}년 ${month}월 ${day}일에 ${type} 사용 신청`;
       // @ts-ignore
