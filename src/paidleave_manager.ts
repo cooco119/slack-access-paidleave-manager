@@ -197,9 +197,9 @@ export default class PaidleaveManager{
             if (message.text.substring(0,2) === '//'){
               console.log(message);
               const commands = message.text.substring(2, message.text.length);
-              let command, arg1, arg2, arg3;
-              [command, arg1, arg2, arg3] = commands.split(' ');
-              console.log(command, arg1, arg2, arg3);
+              let command, arg1, arg2;
+              [command, arg1, arg2] = commands.split(' ');
+              console.log(command, arg1, arg2);
               
               this.web.chat.delete({channel: message.channel, ts: message.ts})
               // @ts-ignore
@@ -209,10 +209,11 @@ export default class PaidleaveManager{
               .catch(console.error);
 
               if (command === "연차"){
-                if (arg1 && arg2 && !arg3) {
+                if (arg1 && !arg2) {
                   let year = "ff", month = "ff", day = "ff";
-                  name = arg1;
-                  [year, month, day] = arg2.split('.');
+                  const user = message.user;
+                  name = await this.getUserName(user);
+                  [year, month, day] = arg1.split('.');
 
                   try{
                     // @ts-ignore
@@ -257,7 +258,7 @@ export default class PaidleaveManager{
                   return;  
                 }
                 else {
-                  const response = "연차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//연차 [이름] [날짜]";;
+                  const response = "연차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//연차 [날짜]";;
                   this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
                   // @ts-ignore
                   .then(res => {
@@ -268,14 +269,16 @@ export default class PaidleaveManager{
                 }
               }
               else if (command === "반차"){
-                if (arg1 && arg2 && arg3) {
+                if (arg1 && arg2) {
                   let year = "ff", month = "ff", day = "ff", type;
-                  name = arg1;
-                  type = arg3;
-                  [year, month, day] = arg2.split('.');
+                  const user = message.user;
+                  name = await this.getUserName(user);
+                  
+                  type = arg2;
+                  [year, month, day] = arg1.split('.');
                   console.log(year, month, day);
                   if (month === undefined || day === undefined){
-                    const response = "반차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//반차 [이름] [날짜] [오전|오후]";
+                    const response = "반차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//반차 [날짜] [오전|오후]";
                     // @ts-ignore
                     this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
                     // @ts-ignore
@@ -330,7 +333,7 @@ export default class PaidleaveManager{
                   return;  
                 }
                 else {
-                  const response = "반차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//반차 [이름] [날짜] [오전|오후]";
+                  const response = "반차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//반차 [날짜] [오전|오후]";
                   // @ts-ignore
                   this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
                   // @ts-ignore
@@ -343,7 +346,7 @@ export default class PaidleaveManager{
 
               }
               else if (command === "조회"){
-                if (!arg1 && !arg2 && !arg3){
+                if (!arg1 && !arg2){
                   let responseMsg = "";
                   let name = await this.getUserName(message.user);
                   let totalUse = '';
