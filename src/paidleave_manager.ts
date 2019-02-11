@@ -3,6 +3,7 @@ import axios from 'axios';
 import { RTMClient, WebClient } from '@slack/client';
 import { Request } from 'express-serve-static-core';
 import { Response } from 'express';
+import { error } from 'util';
 const { createMessageAdapter } = require('@slack/interactive-messages');
 const http = require('http');
 const express = require('express');
@@ -89,14 +90,18 @@ export default class PaidleaveManager{
         }
         const recent = csvdata[csvdata.length - 2];
         // @ts-ignore
-        used = parseInt(recent[recent.length - 1]);
+        used = parseFloat(recent[recent.length - 1]);
       }
       
-      if (type === '연차'){
+      if (type === "연차"){
         used += 1;
       }
-      else {
+      else if (type === "반차(오전)" || type === "반차(오후)") {
         used += 0.5;
+      }
+      else {
+        throw error("Not a defined type");
+        return;
       }
 
       // Write params into csv file.
@@ -142,7 +147,10 @@ export default class PaidleaveManager{
         this.rtm.on('message', async message => {
             let name, year, month, day, hour, minute, second, type;
             let tmp, date, time;
-            
+            if (message.text === undefined){
+              console.log("undefined message");
+              return;
+            }
 
             // Check if it is a command
             if (message.text.substring(0,2) === '//'){
@@ -192,12 +200,23 @@ export default class PaidleaveManager{
                     .catch(console.error);
                     return;
                   }
-                  this.updateCSV(message, "연차", year, month, day);
+                  try{
+                    this.updateCSV(message, "연차", year, month, day);
+                  }
+                  catch(e) {
+                    console.log(e);
+                    this.web.chat.postEphemeral({channel: message.channel, text: "타입 에러 발생", user: message.user})
+                    // @ts-ignore
+                    .then(res => {
+                      console.log(res);
+                    })
+                    .catch(console.error);
+                    return;
+                  }
                   return;  
                 }
                 else {
-                  const response = "연차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//연차 [이름] [날짜]";
-                  // @ts-ignore
+                  const response = "연차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//연차 [이름] [날짜]";;
                   this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
                   // @ts-ignore
                   .then(res => {
@@ -213,6 +232,18 @@ export default class PaidleaveManager{
                   name = arg1;
                   type = arg3;
                   [year, month, day] = arg2.split('.');
+                  console.log(year, month, day);
+                  if (month === undefined || day === undefined){
+                    const response = "반차 명령어 오류.\n다음 형식으로 입력하십시오.\n\n//반차 [이름] [날짜] [오전|오후]";
+                    // @ts-ignore
+                    this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                    // @ts-ignore
+                    .then(res => {
+                      console.log(res);
+                    })
+                    .catch(console.error);
+                    return;
+                  }
 
                   try{
                     // @ts-ignore
@@ -241,7 +272,20 @@ export default class PaidleaveManager{
                     .catch(console.error);
                     return;
                   }
-                  this.updateCSV(message, "반차(" + type + ")", year, month, day);
+                  try{
+                    this.updateCSV(message, "반차(" + type + ")", year, month, day);
+                  }
+                  catch (e) {
+                    console.log(e);
+                    // @ts-ignore
+                    this.web.chat.postEphemeral({channel: message.channel, text: '타입 에러 발생', user: message.user})
+                    // @ts-ignore
+                    .then(res => {
+                      console.log(res);
+                    })
+                    .catch(console.error);
+                    return;
+                  }
                   return;  
                 }
                 else {
