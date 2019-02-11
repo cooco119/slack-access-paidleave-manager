@@ -64,6 +64,10 @@ export default class AccessManager{
     this.slackInteractions = createMessageAdapter(signingSecret);
   }
 
+  private getNameList(){
+    return fs.readdirSync(this.csvfilePrefix);
+  }
+
   private async getUserName(user: string){
     const queryString = require('query-string');
     const data = {
@@ -85,6 +89,43 @@ export default class AccessManager{
       }
     });
   }
+
+  // @ts-ignore
+  private async sortAndRewrite(csv){
+    console.log("csv: ", csv);
+
+    let csvdata: Array<Array<string>> = [];
+    await Papa.parse(fs.readFileSync(csv).toString(), {
+      worker: true,
+      // @ts-ignore
+      step: (results) => {
+        csvdata.push(results.data[0]);
+      }
+    })
+    let dataNoHeader = csvdata.slice(1, csvdata.length-1);
+    dataNoHeader.sort((a: Array<string>, b: Array<string>): number => {
+      const dateA = new Date(parseInt(a[1]), parseInt(a[2])-1, parseInt(a[3]), parseInt(a[4]), parseInt(a[5]), parseInt(a[6]));
+      const dateB = new Date(parseInt(b[1]), parseInt(b[2])-1, parseInt(b[3]), parseInt(b[4]), parseInt(b[5]), parseInt(b[6]));
+
+      if (dateA > dateB) return 1;
+      if (dateA < dateB) return -1;
+
+      return 0;
+    });
+    console.log(dataNoHeader);
+
+    const writer = csvWriter({headers: ['name', 'year', 'month', 'day', 'hour', 'minute', 'second', 'type'], sendHeaders: true});
+    writer.pipe(fs.createWriteStream(csv, { flags: 'w' }));
+    for (let i = 0; i < dataNoHeader.length; i++){
+      if (dataNoHeader[i][0] === ''){
+        continue;
+      }
+      writer.write(dataNoHeader[i]);
+    }
+    writer.end();
+
+  }
+
 
   // @ts-ignore
   private async searchDaily (message, targetyear, targetmonth, targetday) {
@@ -477,6 +518,10 @@ export default class AccessManager{
             let name, year, month, day, hour, minute, second, type;
             let tmp, date, time;
             
+            if (message.text === undefined){
+              console.log("undefined message");
+              return;
+            }
 
             // Check if it is a command
             if (message.text.substring(0,2) === '//'){
@@ -492,8 +537,34 @@ export default class AccessManager{
                 console.log(res);
               })
               .catch(console.error);
+
+              if (command === "h" || command === "help"){
+                const response = "자동으로 출퇴근 기록이 저장됩니다.\n또는 '퇴근'이나 '외출'이 들어간 메세지를 분석하여 알아서 저장해줍니다.\n조회하려면 다음을 입력하세요: \n//조회 [일별|주별|월별] [날짜 (일별: YYYY.MM.DD | 주별: YYYY.MM.W(1~5) | 월별: YYYY.MM)]";
+                // @ts-ignore
+                this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                // @ts-ignore
+                .then(res => {
+                  console.log(res);
+                })
+                .catch(console.error);
+              }
+              else if (command === "sort"){
+                const nameList = this.getNameList();
+                for (let i = 0; i < nameList.length; i++){
+                  let csvfile = this.csvfilePrefix + nameList[i];
+                  this.sortAndRewrite(csvfile);
+                }
+                const response = "Sorting complete. \n Processed " + nameList.length.toString() + " files.";
+                // @ts-ignore
+                this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
+                // @ts-ignore
+                .then(res => {
+                  console.log(res);
+                })
+                .catch(console.error);
+              }
               
-              if (arg1 === null || arg1 === undefined){
+              else if (arg1 === null || arg1 === undefined){
                 const response = "조회 범위 명령어 오류.\n조회하려면 다음과 같이 [일별|주별|월별] 중 한가지를 입력해주세요. \n//조회 [일별|주별|월별]  [날짜 (일별: YYYY.MM.DD | 주별: YYYY.MM.W(1~5) | 월별: YYYY.MM)]";
                 // @ts-ignore
                 this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
@@ -504,7 +575,7 @@ export default class AccessManager{
                 .catch(console.error);
                 return;                
               }
-              if (arg2 === null || arg2 === undefined){
+              else if (arg2 === null || arg2 === undefined){
                 if (arg1 === "일별"){
                   const response = "날짜 명령어 오류.\n일별 조회에 대한 날짜 형식은 다음과 같습니다: YYYY.MM.DD";
                   // @ts-ignore
@@ -635,22 +706,6 @@ export default class AccessManager{
                   return;
                 }
               }
-              if (command === "h" || command === "help"){
-                const response = "자동으로 출퇴근 기록이 저장됩니다.\n또는 '퇴근'이나 '외출'이 들어간 메세지를 분석하여 알아서 저장해줍니다.\n조회하려면 다음을 입력하세요: \n//조회 [일별|주별|월별] [날짜 (일별: YYYY.MM.DD | 주별: YYYY.MM.W(1~5) | 월별: YYYY.MM)]";
-                this.web.chat.delete({channel: message.channel, ts: message.ts})
-                // @ts-ignore
-                .then(res => {
-                  console.log(res);
-                })
-                .catch(console.error);
-                // @ts-ignore
-                this.web.chat.postEphemeral({channel: message.channel, text: response, user: message.user})
-                // @ts-ignore
-                .then(res => {
-                  console.log(res);
-                })
-                .catch(console.error);
-              }
             }
             // Parse the message if has given format
             else if (message.text.split(' : ').length === 2){
@@ -704,6 +759,11 @@ export default class AccessManager{
                 second = tmp_date.getSeconds().toString();;
                 console.log([name, year, month, day, hour, minute, second, type]);
               }
+            }
+
+            if (name === undefined){
+              console.log("undefined name");
+              return;
             }
 
             // Write params into csv file.

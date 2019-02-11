@@ -59,8 +59,6 @@ export default class PaidleaveManager{
   private async sortAndRewrite(csv){
     console.log("csv: ", csv);
 
-    let name, year, month, day, type, used;
-
     let csvdata: Array<Array<string>> = [];
     await Papa.parse(fs.readFileSync(csv).toString(), {
       worker: true,
