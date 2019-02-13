@@ -28,10 +28,6 @@ export default class PaidleaveManager{
     this.rtm = new RTMClient(this.token1);
     this.rtm.start();
     this.web = new WebClient(this.token2);
-
-    const signingFile = process.cwd().toString() + '/secure/paidleave/slack_signing_secret';
-    const signingSecret = fs.readFileSync(signingFile).toString();
-    this.slackInteractions = createMessageAdapter(signingSecret);
   }
 
   private async getUserName(user: string){

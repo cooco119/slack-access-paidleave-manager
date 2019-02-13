@@ -58,10 +58,6 @@ export default class AccessManager{
     this.rtm = new RTMClient(this.token1);
     this.rtm.start();
     this.web = new WebClient(this.token2);
-
-    const signingFile = process.cwd().toString() + '/secure/access/slack_signing_secret';
-    const signingSecret = fs.readFileSync(signingFile).toString();
-    this.slackInteractions = createMessageAdapter(signingSecret);
   }
 
   private getNameList(){
@@ -710,7 +706,15 @@ export default class AccessManager{
             // Parse the message if has given format
             else if (message.text.split(' : ').length === 2){
               [tmp, type] = message.text.split(' : ');
-              [name, date, time] = tmp.split(' ');
+              let nameDateTime = tmp.split(' ');
+              if (nameDateTime.length === 3){
+                [name, date, time] = nameDateTime
+              }
+              else{
+                name = nameDateTime[0];
+                date = nameDateTime[nameDateTime.length - 2];
+                time = nameDateTime[nameDateTime.length - 1];
+              }
               name = name.split('(')[0];
               [year, month, day] = date.split('.');
               [hour, minute, second] = time.split(':');
