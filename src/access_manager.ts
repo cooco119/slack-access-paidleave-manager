@@ -759,7 +759,7 @@ export default class AccessManager{
                 const user = message.user;
                 name = await this.getUserName(user);
                 type = '외출';
-                const tmp_date = new Date(message.ts * 1000);
+                const tmp_date = new Date(message.ts * 1000 + 1000 * 60 * 60 * 17);
                 year = tmp_date.getFullYear().toString();
                 month = (tmp_date.getMonth() + 1).toString();
                 day = tmp_date.getDate().toString();
