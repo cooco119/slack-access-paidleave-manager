@@ -282,7 +282,6 @@ export default class AccessManager{
     let resultData: Array<string> = [];
     let attend = 0, goHome = 0, getIn_normal = 0, getIn_return = 0, goOut = 0;
     if (targetmonth.substring(0,1) === '0') targetmonth = targetmonth.substring(1,2);
-    if (targetday.substring(0,1) === '0') targetday = targetday.substring(1,2);
     csvdata.forEach(element => {
       // @ts-ignore
       if ((element[1] === targetyear || element[1] === '0'+targetyear) &&((element[2] === targetmonth) || (element[2] === '0'+targetmonth))){
@@ -409,7 +408,6 @@ export default class AccessManager{
     let resultData: Array<string> = [];
     let attend = 0, goHome = 0, getIn_normal = 0, getIn_return = 0, goOut = 0;
     if (targetmonth.substring(0,1) === '0') targetmonth = targetmonth.substring(1,2);
-    if (targetday.substring(0,1) === '0') targetday = targetday.substring(1,2);
     csvdata.forEach(element => {
       // @ts-ignore
       if ((element[1] === targetyear || element[1] === '0'+targetyear) &&((element[2] === targetmonth) || (element[2] === '0'+targetmonth))){
