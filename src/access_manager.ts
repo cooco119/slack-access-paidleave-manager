@@ -743,7 +743,7 @@ export default class AccessManager{
                 // Get date & time from message.ts, which is a unix timestamp.
                 type = '퇴근';
                 // const tmp_date = new Date(message.ts * 1000);
-                const tmp_date = new Date((new Date()).getTime() + 1000 * 60 * 60 * 17);
+                const tmp_date = new Date(message.ts * 1000 + 1000 * 60 * 60 * 17);
                 year = tmp_date.getFullYear().toString();
                 month = (tmp_date.getMonth() + 1).toString();
                 day = tmp_date.getDate().toString();
